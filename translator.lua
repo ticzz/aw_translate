@@ -3,9 +3,12 @@
 -- Network configuration (Don't touch if you don't know what you're doing)
 local NETWORK_QUEUE_FILE_NAME = "network_queue.dat";
 local NETWORK_OUTPUT_FILE_NAME = "network_output.dat";
-local NETWORK_PREFIX = "TRANSLATE";
-local NETWORK_POST_ADDR = "http://shady-aimware-api.cf:8080/translate"
-local NETWORK_API_AUTH = "";
+local NETWORK_PREFIX = "TRANSLATOR";
+local NETWORK_POST_ADDR = "http://shady-aimware-api.cf:8080/translate";
+local SCRIPT_FILE_NAME = "translator.lua";
+local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
+local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
+local VERSION_NUMBER = "1.0.0";
 
 local OUTPUT_READ_TIMEOUT = 30;
 local MESSAGE_COOLDOWN = 30;
@@ -49,20 +52,30 @@ end
 local messages_translated = {};
 local text_width, text_height = 0, 0;
 local show, pressed = false, true;
+local version_check_sent = false;
+local update_downloaded = false;
 
 function gameEventHandler(event)
+    if (update_downloaded) then
+        return;
+    end
+
     if (event:GetName() == "player_say") then
         local teamonly = event:GetInt('teamonly');
         local player_name = client.GetPlayerNameByUserID(event:GetInt('userid'));
         local text = event:GetString('text');
 
-        local network_queue_file = file.Open(NETWORK_QUEUE_FILE_NAME, "a");
-        network_queue_file:Write(NETWORK_PREFIX .. " GET " .. NETWORK_POST_ADDR .. "?type=OTHER&from=" .. string.lower(TRANSLATE_FROM_EDITBOX:GetValue()) .. "&to=" .. string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()) .. "&team=" .. teamonly .. "&name=" .. player_name .. "&msg=" .. text .. "\n");
-        network_queue_file:Close();
+        writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " GET " .. NETWORK_POST_ADDR .. "?type=TRANSLATE&from=" .. string.lower(TRANSLATE_FROM_EDITBOX:GetValue()) .. "&to=" .. string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()) .. "&team=" .. teamonly .. "&name=" .. player_name .. "&msg=" .. text .. "\n");
     end
 end
 
 function drawEventHandler()
+    if (update_downloaded) then
+        draw.Color(255, 0, 0, 255);
+        draw.Text(0, 0, "[TRANSLATOR] An update has automatically been downloaded, please reload the translate script");
+        return;
+    end
+
     show = OPEN_TRANSLATE_WINDOW_CB:GetValue();
 
     if input.IsButtonPressed(gui.GetValue("msc_menutoggle")) then
@@ -81,6 +94,10 @@ function drawEventHandler()
 
     if (last_message_sent ~= nil and last_message_sent > globals.TickCount()) then
         last_message_sent = globals.TickCount();
+    end
+
+    if (version_check_sent == false) then
+        version_check_sent = writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " GET " .. VERSION_FILE_ADDR);
     end
 
     if (globals.TickCount() - last_output_read > OUTPUT_READ_TIMEOUT) then
@@ -115,8 +132,14 @@ function drawEventHandler()
                         client.ChatTeamSay(response);
                     elseif (type == "ME_ALL") then
                         client.ChatSay(response);
+                    elseif (type == "TRANSLATE") then
+                        table.insert(messages_translated, "[TRANSLATOR] " .. response .. "");
                     else
-                        table.insert(messages_translated, "[TRANSLATE] " .. response .. "");
+                        -- Version check
+                        if (type ~= VERSION_NUMBER) then
+                            writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " VERSION_UPDATE " .. SCRIPT_FILE_ADDR .. " " .. SCRIPT_FILE_NAME);
+                            update_downloaded = true;
+                        end
                     end
                 end
             end
@@ -124,11 +147,7 @@ function drawEventHandler()
 
         if (lines_omitted > 0) then
             -- Clear the file
-            network_output_file = file.Open(NETWORK_OUTPUT_FILE_NAME, "w");
-            if (network_output_file ~= nil) then
-                network_output_file:Write(table.concat(lines_to_keep, "\n"));
-                network_output_file:Close();
-            end
+            writeToFile(NETWORK_OUTPUT_FILE_NAME, "w", table.concat(lines_to_keep, "\n"));
         end
     end
     for i, msg in ipairs(messages_translated) do
@@ -198,14 +217,22 @@ function sendMessage(type)
     local teamonly = 1;
     local player_name = "unnecessary";
 
-    local network_queue_file = file.Open(NETWORK_QUEUE_FILE_NAME, "a");
-    if (network_output_file ~= nil) then
-        network_queue_file:Write(NETWORK_PREFIX .. " GET " .. NETWORK_POST_ADDR .. "?type=" .. type .. "&from=" .. string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()) .. "&to=" .. string.lower(TRANSLATE_TO_EDITBOX:GetValue()) .. "&team=" .. teamonly .. "&name=" .. player_name .. "&msg=" .. text .. "\n");
-        network_queue_file:Close();
-    end
+    writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " GET " .. NETWORK_POST_ADDR .. "?type=" .. type .. "&from=" .. string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()) .. "&to=" .. string.lower(TRANSLATE_TO_EDITBOX:GetValue()) .. "&team=" .. teamonly .. "&name=" .. player_name .. "&msg=" .. text .. "\n");
 end
 
-client.AllowListener("player_say");
+function writeToFile(fileName, mode, content)
+    local write_file = file.Open(fileName, mode);
+    if (write_file ~= nil) then
+        write_file:Write(content);
+        write_file:Close();
+        return true;
+    end
+
+    return false;
+end
+
+client.AllowListener("player_say", true);
+client.AllowListener("player_chat", true);
 
 callbacks.Register("Draw", "translate_draw_event", drawEventHandler);
 callbacks.Register("FireGameEvent", "translate_game_event", gameEventHandler);
