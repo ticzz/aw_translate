@@ -8,7 +8,7 @@ local NETWORK_POST_ADDR = "http://shady-aimware-api.cf:8080/translate";
 local SCRIPT_FILE_NAME = "translator.lua";
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.0.0";
+local VERSION_NUMBER = "1.0.1";
 
 local OUTPUT_READ_TIMEOUT = 30;
 local MESSAGE_COOLDOWN = 30;
@@ -65,7 +65,7 @@ function gameEventHandler(event)
         local player_name = client.GetPlayerNameByUserID(event:GetInt('userid'));
         local text = event:GetString('text');
 
-        writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " GET " .. NETWORK_POST_ADDR .. "?type=TRANSLATE&from=" .. string.lower(TRANSLATE_FROM_EDITBOX:GetValue()) .. "&to=" .. string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()) .. "&team=" .. teamonly .. "&name=" .. player_name .. "&msg=" .. text .. "\n");
+        writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " TRANSLATE GET " .. NETWORK_POST_ADDR .. "?type=TRANSLATE&from=" .. string.lower(TRANSLATE_FROM_EDITBOX:GetValue()) .. "&to=" .. string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()) .. "&team=" .. teamonly .. "&name=" .. player_name .. "&msg=" .. text .. "\n");
     end
 end
 
@@ -97,7 +97,7 @@ function drawEventHandler()
     end
 
     if (version_check_sent == false) then
-        version_check_sent = writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " GET " .. VERSION_FILE_ADDR);
+        version_check_sent = writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " VERSION_CHECK GET " .. VERSION_FILE_ADDR);
     end
 
     if (globals.TickCount() - last_output_read > OUTPUT_READ_TIMEOUT) then
@@ -116,11 +116,15 @@ function drawEventHandler()
             end
 
             local prefix = words[1];
-            local status = words[2];
-            local type = words[3];
-            local response = "";
+            local event_name = words[2];
+            local status = words[3];
+            local response;
             for i = 4, #words do
-                response = response .. " " .. words[i];
+                if (response == nil) then
+                    response = words[i];
+                else
+                    response = response .. " " .. words[i];
+                end
             end
 
             if (prefix ~= NETWORK_PREFIX) then
@@ -128,16 +132,15 @@ function drawEventHandler()
             else
                 lines_omitted = lines_omitted + 1;
                 if (status == "SUCCESS") then
-                    if (type == "ME_TEAM") then
+                    if (event_name == "ME_TEAM") then
                         client.ChatTeamSay(response);
-                    elseif (type == "ME_ALL") then
+                    elseif (event_name == "ME_ALL") then
                         client.ChatSay(response);
-                    elseif (type == "TRANSLATE") then
+                    elseif (event_name == "TRANSLATE") then
                         table.insert(messages_translated, "[TRANSLATOR] " .. response .. "");
-                    else
-                        -- Version check
-                        if (type ~= VERSION_NUMBER) then
-                            writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " VERSION_UPDATE " .. SCRIPT_FILE_ADDR .. " " .. SCRIPT_FILE_NAME);
+                    elseif (event_name == "VERSION_CHECK") then
+                        if (response ~= VERSION_NUMBER) then
+                            writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. "VERSION_UPDATE VERSION_UPDATE " .. SCRIPT_FILE_ADDR .. " " .. SCRIPT_FILE_NAME);
                             update_downloaded = true;
                         end
                     end
@@ -217,7 +220,7 @@ function sendMessage(type)
     local teamonly = 1;
     local player_name = "unnecessary";
 
-    writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " GET " .. NETWORK_POST_ADDR .. "?type=" .. type .. "&from=" .. string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()) .. "&to=" .. string.lower(TRANSLATE_TO_EDITBOX:GetValue()) .. "&team=" .. teamonly .. "&name=" .. player_name .. "&msg=" .. text .. "\n");
+    writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " " .. type .. " GET " .. NETWORK_POST_ADDR .. "?type=" .. type .. "&from=" .. string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()) .. "&to=" .. string.lower(TRANSLATE_TO_EDITBOX:GetValue()) .. "&team=" .. teamonly .. "&name=" .. player_name .. "&msg=" .. text .. "\n");
 end
 
 function writeToFile(fileName, mode, content)
