@@ -4,7 +4,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = "translator.lua";
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.0.2";
+local VERSION_NUMBER = "1.0.3";
 
 local MESSAGE_COOLDOWN = 30;
 
@@ -50,7 +50,7 @@ function userMessageHandler(message)
         local text = message:GetString( 4, 1 );
         local name = client.GetPlayerNameByIndex(pid);
         local textallchat = message:GetInt(5);
-        local translation = getTranslation("TRANSLATE", name, text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), not textallchat);
+        local translation = getTranslation("TRANSLATE", name, text, string.lower(TRANSLATE_FROM_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), textallchat);
         if (translation == nil or translation == "") then
            return;
         end
@@ -118,7 +118,8 @@ function drawEventHandler()
         if (#messages_translated - i < NUM_OF_MESSAGES_SLIDER:GetValue()) then
             local w, h = draw.GetTextSize(msg);
             if (text_height == 0 or w > text_width) then
-                text_width, text_height = draw.GetTextSize(msg);
+                text_width = math.max(w, text_width);
+                text_height = h;
             end
         end
     end
@@ -213,7 +214,7 @@ function sendMessage(type)
         return;
     end
 
-    local translation = getTranslation("ME_TEAM", "", text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), 1);
+    local translation = getTranslation("ME_TEAM", "none", text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), 1);
     if (translation == nil or translation == "") then
         return;
     end
@@ -226,7 +227,7 @@ function sendMessage(type)
 end
 
 function getTranslation(type, name, message, from, to, teamonly)
-    if (teamonly == true) then
+    if (teamonly == 0) then
         teamonly = 1;
     else
         teamonly = 0;
