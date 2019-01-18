@@ -4,7 +4,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = "translator.lua";
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.0.5";
+local VERSION_NUMBER = "1.0.6";
 
 local MESSAGE_COOLDOWN = 30;
 
@@ -49,6 +49,7 @@ function userMessageHandler(message)
         local pid = message:GetInt( 1 );
         local text = message:GetString( 4, 1 );
         local name = client.GetPlayerNameByIndex(pid);
+
         local textallchat = message:GetInt(5);
         local translation = getTranslation("TRANSLATE", name, text, string.lower(TRANSLATE_FROM_EDITBOX:GetValue()),  string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()), textallchat);
         if (translation == nil or translation == "") then
@@ -235,6 +236,11 @@ function getTranslation(type, name, message, from, to, teamonly)
         teamonly = 0;
     end
 
+    if (name == nil or name == "") then
+        name = "unknown";
+    end
+
+    name = urlencode(name);
     message = urlencode(message);
 
     return http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly);
