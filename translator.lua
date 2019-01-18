@@ -4,7 +4,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = "translator.lua";
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.0.4";
+local VERSION_NUMBER = "1.0.5";
 
 local MESSAGE_COOLDOWN = 30;
 
@@ -23,10 +23,10 @@ gui.Text(TRANSLATE_WINDOW, "Your language (ISO code): ");
 local TRANSLATE_MY_LANGUAGE_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_MY_LANGUAGE_EDITBOX", "en");
 
 -- Translating own message
-gui.Text(TRANSLATE_WINDOW, "Translate to language (ISO code): ");
-local TRANSLATE_TO_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_TO_EDITBOX", "en");
 gui.Text(TRANSLATE_WINDOW, "Your message: ");
 local TRANSLATE_MESSAGE_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_MESSAGE_EDITBOX", "");
+gui.Text(TRANSLATE_WINDOW, "Translate to language (ISO code): ");
+local TRANSLATE_TO_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_TO_EDITBOX", "en");
 
 local EDITOR_POSITION_X, EDITOR_POSITION_Y = 50, 50;
 
@@ -50,9 +50,9 @@ function userMessageHandler(message)
         local text = message:GetString( 4, 1 );
         local name = client.GetPlayerNameByIndex(pid);
         local textallchat = message:GetInt(5);
-        local translation = getTranslation("TRANSLATE", name, text, string.lower(TRANSLATE_FROM_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), textallchat);
+        local translation = getTranslation("TRANSLATE", name, text, string.lower(TRANSLATE_FROM_EDITBOX:GetValue()),  string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()), textallchat);
         if (translation == nil or translation == "") then
-           return;
+            return;
         end
 
         table.insert(messages_translated, translation);
@@ -160,7 +160,7 @@ function drawEventHandler()
 
     if (mouse_x > EDITOR_POSITION_X and mouse_x < EDITOR_POSITION_X + LOAD_TEXT_W + 10 and mouse_y > EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H) then
         draw.Color(0, 0, 0, 200);
-        if (left_mouse_down and globals.TickCount() - last_message_sent < MESSAGE_COOLDOWN) then
+        if (left_mouse_down) then
             sendMessage("ME_TEAM");
         end
     else
@@ -224,6 +224,8 @@ function sendMessage(type)
     elseif (type == "ME_ALL") then
         client.ChatSay(translation);
     end
+
+    last_message_sent = globals.TickCount();
 end
 
 function getTranslation(type, name, message, from, to, teamonly)
