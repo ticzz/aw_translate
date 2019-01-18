@@ -4,7 +4,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = "translator.lua";
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.0.3";
+local VERSION_NUMBER = "1.0.4";
 
 local MESSAGE_COOLDOWN = 30;
 
@@ -232,7 +232,24 @@ function getTranslation(type, name, message, from, to, teamonly)
     else
         teamonly = 0;
     end
+
+    message = urlencode(message);
+
     return http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly);
+end
+
+local char_to_hex = function(c)
+    return string.format("%%%02X", string.byte(c))
+end
+
+function urlencode(url)
+    if url == nil then
+        return
+    end
+    url = url:gsub("\n", "\r\n")
+    url = url:gsub("([^%w ])", char_to_hex)
+    url = url:gsub(" ", "+")
+    return url
 end
 
 callbacks.Register("Draw", "translate_draw_event", drawEventHandler);
