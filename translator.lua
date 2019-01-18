@@ -1,24 +1,17 @@
 -- Chat Translator by ShadyRetard
 
--- Network configuration (Don't touch if you don't know what you're doing)
-local NETWORK_QUEUE_FILE_NAME = "network_queue.dat";
-local NETWORK_OUTPUT_FILE_NAME = "network_output.dat";
-local NETWORK_PREFIX = "TRANSLATOR";
-local NETWORK_POST_ADDR = "http://shady-aimware-api.cf:8080/translate";
+local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = "translator.lua";
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.0.1";
+local VERSION_NUMBER = "1.0.2";
 
-local OUTPUT_READ_TIMEOUT = 30;
 local MESSAGE_COOLDOWN = 30;
 
 local OPEN_TRANSLATE_WINDOW_CB = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "OPEN_TRANSLATE_WINDOW_CB", "Chat translator", false);
-local TRANSLATE_WINDOW = gui.Window("TRANSLATE_WINDOW", "Chat Translator", 0, 0, 300, 500);
+local TRANSLATE_WINDOW = gui.Window("TRANSLATE_WINDOW", "Chat Translator", 0, 0, 300, 300);
 
 -- TRANSLATED MESSAGES
-local POS_X_SLIDER = gui.Slider(TRANSLATE_WINDOW, "POS_X_SLIDER", "X Position", 0, 0, 3000);
-local POS_Y_SLIDER = gui.Slider(TRANSLATE_WINDOW, "POS_Y_SLIDER", "Y Position", 0, 0, 3000);
 local NUM_OF_MESSAGES_SLIDER = gui.Slider(TRANSLATE_WINDOW, "NUM_OF_MESSAGES_SLIDER", "# of shown messages", 10, 0, 50);
 
 -- Other person's language
@@ -35,45 +28,70 @@ local TRANSLATE_TO_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_TO_EDITBOX
 gui.Text(TRANSLATE_WINDOW, "Your message: ");
 local TRANSLATE_MESSAGE_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_MESSAGE_EDITBOX", "");
 
+local EDITOR_POSITION_X, EDITOR_POSITION_Y = 50, 50;
+
 local last_output_read = globals.TickCount();
 local last_message_sent = globals.TickCount();
 
--- Just open up the file in append mode, should create the file if it doesn't exist and won't override anything if it does
-local network_queue_file = file.Open(NETWORK_QUEUE_FILE_NAME, "a");
-if (network_queue_file ~= nil) then
-    network_queue_file:Close();
-end
-
-local network_output_file = file.Open(NETWORK_OUTPUT_FILE_NAME, "a");
-if (network_output_file ~= nil) then
-    network_output_file:Close();
-end
-
 local messages_translated = {};
-local text_width, text_height = 0, 0;
+local text_width, text_height = 300, 0;
 local show, pressed = false, true;
-local version_check_sent = false;
+
+local is_dragging = false;
+local dragging_offset_x, dragging_offset_y;
+
+local update_available = false;
+local version_check_done = false;
 local update_downloaded = false;
 
-function gameEventHandler(event)
-    if (update_downloaded) then
-        return;
-    end
+function userMessageHandler(message)
+    if (message:GetID() == 6) then
+        local pid = message:GetInt( 1 );
+        local text = message:GetString( 4, 1 );
+        local name = client.GetPlayerNameByIndex(pid);
+        local textallchat = message:GetInt(5);
+        local translation = getTranslation("TRANSLATE", name, text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), not textallchat);
+        if (translation == nil or translation == "") then
+           return;
+        end
 
-    if (event:GetName() == "player_say") then
-        local teamonly = event:GetInt('teamonly');
-        local player_name = client.GetPlayerNameByUserID(event:GetInt('userid'));
-        local text = event:GetString('text');
-
-        writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " TRANSLATE GET " .. NETWORK_POST_ADDR .. "?type=TRANSLATE&from=" .. string.lower(TRANSLATE_FROM_EDITBOX:GetValue()) .. "&to=" .. string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()) .. "&team=" .. teamonly .. "&name=" .. player_name .. "&msg=" .. text .. "\n");
+        table.insert(messages_translated, translation);
     end
 end
 
 function drawEventHandler()
+    if (update_available and not update_downloaded) then
+        if (gui.GetValue("lua_allow_cfg") == false) then
+            draw.Color(255, 0, 0, 255);
+            draw.Text(0, 0, "[TRANSLATOR] An update is available, please enable Lua Allow Config and Lua Editing in the settings tab");
+        else
+            local new_version_content = http.Get(SCRIPT_FILE_ADDR);
+            local old_script = file.Open(SCRIPT_FILE_NAME, "w");
+            old_script:Write(new_version_content);
+            old_script:Close();
+            update_available = false;
+            update_downloaded = true;
+        end
+    end
+
     if (update_downloaded) then
         draw.Color(255, 0, 0, 255);
-        draw.Text(0, 0, "[TRANSLATOR] An update has automatically been downloaded, please reload the translate script");
+        draw.Text(0, 0, "[TRANSLATOR] An update has automatically been downloaded, please reload the translator script");
         return;
+    end
+
+    if (not version_check_done) then
+        if (gui.GetValue("lua_allow_http") == false) then
+            draw.Color(255, 0, 0, 255);
+            draw.Text(0, 0, "[TRANSLATOR] Please enable Lua HTTP Connections in your settings tab to use this script");
+            return;
+        end
+
+        version_check_done = true;
+        local version = http.Get(VERSION_FILE_ADDR);
+        if (version ~= VERSION_NUMBER) then
+            update_available = true;
+        end
     end
 
     show = OPEN_TRANSLATE_WINDOW_CB:GetValue();
@@ -96,63 +114,6 @@ function drawEventHandler()
         last_message_sent = globals.TickCount();
     end
 
-    if (version_check_sent == false) then
-        version_check_sent = writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " VERSION_CHECK GET " .. VERSION_FILE_ADDR);
-    end
-
-    if (globals.TickCount() - last_output_read > OUTPUT_READ_TIMEOUT) then
-        last_output_read = globals.TickCount();
-        local network_output_file = file.Open(NETWORK_OUTPUT_FILE_NAME, "r");
-        local output = network_output_file:Read();
-        network_output_file:Close();
-
-        local lines_omitted = 0;
-        local lines_to_keep = {};
-
-        for line in string.gmatch(output, "([^\n]*)\n") do
-            local words = {};
-            for word in string.gmatch(line, "%S+") do
-                table.insert(words, word)
-            end
-
-            local prefix = words[1];
-            local event_name = words[2];
-            local status = words[3];
-            local response;
-            for i = 4, #words do
-                if (response == nil) then
-                    response = words[i];
-                else
-                    response = response .. " " .. words[i];
-                end
-            end
-
-            if (prefix ~= NETWORK_PREFIX) then
-                table.insert(lines_to_keep, line);
-            else
-                lines_omitted = lines_omitted + 1;
-                if (status == "SUCCESS") then
-                    if (event_name == "ME_TEAM") then
-                        client.ChatTeamSay(response);
-                    elseif (event_name == "ME_ALL") then
-                        client.ChatSay(response);
-                    elseif (event_name == "TRANSLATE") then
-                        table.insert(messages_translated, "[TRANSLATOR] " .. response .. "");
-                    elseif (event_name == "VERSION_CHECK") then
-                        if (response ~= VERSION_NUMBER) then
-                            writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. "VERSION_UPDATE VERSION_UPDATE " .. SCRIPT_FILE_ADDR .. " " .. SCRIPT_FILE_NAME);
-                            update_downloaded = true;
-                        end
-                    end
-                end
-            end
-        end
-
-        if (lines_omitted > 0) then
-            -- Clear the file
-            writeToFile(NETWORK_OUTPUT_FILE_NAME, "w", table.concat(lines_to_keep, "\n"));
-        end
-    end
     for i, msg in ipairs(messages_translated) do
         if (#messages_translated - i < NUM_OF_MESSAGES_SLIDER:GetValue()) then
             local w, h = draw.GetTextSize(msg);
@@ -162,13 +123,21 @@ function drawEventHandler()
         end
     end
 
+    -- Header
+    local header_text_width, header_text_height = draw.GetTextSize("Chat Translations");
+    draw.Color(gui.GetValue("clr_gui_window_header"));
+    draw.FilledRect(EDITOR_POSITION_X, EDITOR_POSITION_Y, EDITOR_POSITION_X + text_width + 20, EDITOR_POSITION_Y + header_text_height + 10);
+
+    draw.Color(gui.GetValue("clr_gui_window_logo1"));
+    draw.Text(EDITOR_POSITION_X + 5, EDITOR_POSITION_Y + 5, "Chat Translations");
+
     draw.Color(0, 0, 0, 100);
-    draw.FilledRect(POS_X_SLIDER:GetValue(), POS_Y_SLIDER:GetValue(), POS_X_SLIDER:GetValue() + text_width + 20, POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20)
+    draw.FilledRect(EDITOR_POSITION_X, EDITOR_POSITION_Y + header_text_height + 10, EDITOR_POSITION_X + text_width + 20, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20)
 
     for i, msg in ipairs(messages_translated) do
         if (#messages_translated - i < NUM_OF_MESSAGES_SLIDER:GetValue()) then
             draw.Color(255, 255, 255, 255);
-            draw.TextShadow(10 + POS_X_SLIDER:GetValue(), 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + POS_Y_SLIDER:GetValue() - (#messages_translated - i) * text_height - 10, msg);
+            draw.TextShadow(10 + EDITOR_POSITION_X,  header_text_height + 10 + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + EDITOR_POSITION_Y - (#messages_translated - i) * text_height - 10, msg);
         end
     end
 
@@ -177,22 +146,32 @@ function drawEventHandler()
     local left_mouse_down = input.IsButtonDown(1);
 
     local LOAD_TEXT_W, LOAD_TEXT_H = draw.GetTextSize("TEAM MESSAGE");
-    if (mouse_x > POS_X_SLIDER:GetValue() and mouse_x < POS_X_SLIDER:GetValue() + LOAD_TEXT_W + 10 and mouse_y > POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H) then
+
+    if (is_dragging == true and left_mouse_down == false) then
+        is_dragging = false;
+        dragging_offset_x = 0;
+        dragging_offset_y = 0;
+    end
+
+    if (left_mouse_down) then
+        dragHandler(header_text_height);
+    end
+
+    if (mouse_x > EDITOR_POSITION_X and mouse_x < EDITOR_POSITION_X + LOAD_TEXT_W + 10 and mouse_y > EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H) then
         draw.Color(0, 0, 0, 200);
-        if (left_mouse_down) then
+        if (left_mouse_down and globals.TickCount() - last_message_sent < MESSAGE_COOLDOWN) then
             sendMessage("ME_TEAM");
-            -- print
         end
     else
         draw.Color(0, 0, 0, 100);
     end
 
-    draw.FilledRect(POS_X_SLIDER:GetValue(), POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20, POS_X_SLIDER:GetValue() + LOAD_TEXT_W + 10, POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H)
+    draw.FilledRect(EDITOR_POSITION_X, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20, EDITOR_POSITION_X + LOAD_TEXT_W + 10, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H)
     draw.Color(255, 255, 255, 255);
-    draw.Text(POS_X_SLIDER:GetValue() + 5, POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 25, "TEAM MESSAGE");
+    draw.Text(EDITOR_POSITION_X + 5, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 25, "TEAM MESSAGE");
 
     local LOAD_TEXT_W2, LOAD_TEXT_H2 = draw.GetTextSize("GLOBAL MESSAGE");
-    if (mouse_x > POS_X_SLIDER:GetValue() + LOAD_TEXT_W + 10 and mouse_x < POS_X_SLIDER:GetValue() + LOAD_TEXT_W + LOAD_TEXT_W2 + 20 and mouse_y > POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H) then
+    if (mouse_x > EDITOR_POSITION_X + LOAD_TEXT_W + 10 and mouse_x < EDITOR_POSITION_X + LOAD_TEXT_W + LOAD_TEXT_W2 + 20 and mouse_y > EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H) then
         draw.Color(0, 0, 0, 200);
         if (left_mouse_down) then
             sendMessage("ME_ALL");
@@ -201,9 +180,26 @@ function drawEventHandler()
         draw.Color(0, 0, 0, 100);
     end
 
-    draw.FilledRect(POS_X_SLIDER:GetValue() + LOAD_TEXT_W + 10, POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20, POS_X_SLIDER:GetValue() + LOAD_TEXT_W + LOAD_TEXT_W2 + 20, POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H)
+    draw.FilledRect(EDITOR_POSITION_X + LOAD_TEXT_W + 10, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20, EDITOR_POSITION_X + LOAD_TEXT_W + LOAD_TEXT_W2 + 20, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H)
     draw.Color(255, 255, 255, 255);
-    draw.Text(POS_X_SLIDER:GetValue() + LOAD_TEXT_W + 15, POS_Y_SLIDER:GetValue() + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 25, "GLOBAL MESSAGE");
+    draw.Text(EDITOR_POSITION_X + LOAD_TEXT_W + 15, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 25, "GLOBAL MESSAGE");
+end
+
+function dragHandler(header_text_height)
+    local mouse_x, mouse_y = input.GetMousePos();
+
+    if (is_dragging == true) then
+        EDITOR_POSITION_X = mouse_x - dragging_offset_x;
+        EDITOR_POSITION_Y = mouse_y - dragging_offset_y;
+        return;
+    end
+
+    if (mouse_x >= EDITOR_POSITION_X and mouse_x <= EDITOR_POSITION_X + text_width and mouse_y >= EDITOR_POSITION_Y and mouse_y <= EDITOR_POSITION_Y + header_text_height + 10) then
+        is_dragging = true;
+        dragging_offset_x = mouse_x - EDITOR_POSITION_X;
+        dragging_offset_y = mouse_y - EDITOR_POSITION_Y;
+        return;
+    end
 end
 
 function sendMessage(type)
@@ -217,25 +213,26 @@ function sendMessage(type)
         return;
     end
 
-    local teamonly = 1;
-    local player_name = "unnecessary";
-
-    writeToFile(NETWORK_QUEUE_FILE_NAME, "a", NETWORK_PREFIX .. " " .. type .. " GET " .. NETWORK_POST_ADDR .. "?type=" .. type .. "&from=" .. string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()) .. "&to=" .. string.lower(TRANSLATE_TO_EDITBOX:GetValue()) .. "&team=" .. teamonly .. "&name=" .. player_name .. "&msg=" .. text .. "\n");
-end
-
-function writeToFile(fileName, mode, content)
-    local write_file = file.Open(fileName, mode);
-    if (write_file ~= nil) then
-        write_file:Write(content);
-        write_file:Close();
-        return true;
+    local translation = getTranslation("ME_TEAM", "", text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), 1);
+    if (translation == nil or translation == "") then
+        return;
     end
 
-    return false;
+    if (type == "ME_TEAM") then
+        client.ChatTeamSay(translation);
+    elseif (type == "ME_ALL") then
+        client.ChatSay(translation);
+    end
 end
 
-client.AllowListener("player_say", true);
-client.AllowListener("player_chat", true);
+function getTranslation(type, name, message, from, to, teamonly)
+    if (teamonly == true) then
+        teamonly = 1;
+    else
+        teamonly = 0;
+    end
+    return http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly);
+end
 
 callbacks.Register("Draw", "translate_draw_event", drawEventHandler);
-callbacks.Register("FireGameEvent", "translate_game_event", gameEventHandler);
+callbacks.Register("DispatchUserMessage", "translate_usermessage_handler", userMessageHandler);
