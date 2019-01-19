@@ -1,17 +1,20 @@
 -- Chat Translator by ShadyRetard
 
 local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
-local SCRIPT_FILE_NAME = "translator.lua";
+local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.0.7";
+local VERSION_NUMBER = "1.0.8";
 
 local MESSAGE_COOLDOWN = 30;
 
 local MAIN_FONT = draw.CreateFont("Tahoma", 13, 13);
+local ERROR_FONT = draw.CreateFont("Tahoma Bold", 17, 17);
 
 local OPEN_TRANSLATE_WINDOW_CB = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "OPEN_TRANSLATE_WINDOW_CB", "Chat translator", false);
-local TRANSLATE_WINDOW = gui.Window("TRANSLATE_WINDOW", "Chat Translator", 0, 0, 300, 300);
+local TRANSLATE_WINDOW = gui.Window("TRANSLATE_WINDOW", "Chat Translator", 0, 0, 300, 350);
+
+local MAX_WIDTH_SLIDER = gui.Slider(TRANSLATE_WINDOW, "MAX_WIDTH_SLIDER", "Max line length", 75, 0, 200);
 
 -- TRANSLATED MESSAGES
 local NUM_OF_MESSAGES_SLIDER = gui.Slider(TRANSLATE_WINDOW, "NUM_OF_MESSAGES_SLIDER", "# of shown messages", 10, 0, 50);
@@ -62,8 +65,22 @@ function userMessageHandler(message)
     end
 end
 
+function drawEventShowHandler()
+    show = OPEN_TRANSLATE_WINDOW_CB:GetValue();
+
+    if input.IsButtonPressed(gui.GetValue("msc_menutoggle")) then
+        pressed = not pressed;
+    end
+
+    if (show and pressed) then
+        TRANSLATE_WINDOW:SetActive(1);
+    else
+        TRANSLATE_WINDOW:SetActive(0);
+    end
+end
+
 function drawEventHandler()
-    draw.SetFont(MAIN_FONT);
+    draw.SetFont(ERROR_FONT);
     if (update_available and not update_downloaded) then
         if (gui.GetValue("lua_allow_cfg") == false) then
             draw.Color(255, 0, 0, 255);
@@ -98,18 +115,6 @@ function drawEventHandler()
         end
     end
 
-    show = OPEN_TRANSLATE_WINDOW_CB:GetValue();
-
-    if input.IsButtonPressed(gui.GetValue("msc_menutoggle")) then
-        pressed = not pressed;
-    end
-
-    if (show and pressed) then
-        TRANSLATE_WINDOW:SetActive(1);
-    else
-        TRANSLATE_WINDOW:SetActive(0);
-    end
-
     if (last_output_read ~= nil and last_output_read > globals.TickCount()) then
         last_output_read = globals.TickCount();
     end
@@ -117,15 +122,40 @@ function drawEventHandler()
     if (last_message_sent ~= nil and last_message_sent > globals.TickCount()) then
         last_message_sent = globals.TickCount();
     end
+    
+    drawTranslations();
+end
 
+function drawTranslations()
+    draw.SetFont(MAIN_FONT);
+    local line_offset_height = 0;
+    local max_width = 0;
     for i, msg in ipairs(messages_translated) do
         if (#messages_translated - i < NUM_OF_MESSAGES_SLIDER:GetValue()) then
-            local w, h = draw.GetTextSize(msg);
-            if (text_height == 0 or w > text_width) then
-                text_width = math.max(w, text_width);
-                text_height = h;
+            local temp;
+            local max_line_width = math.floor(MAX_WIDTH_SLIDER:GetValue());
+            while (string.len(msg) > max_line_width) do
+                temp = msg:sub(1, max_line_width);
+                msg = msg:sub(max_line_width + 1);
+                line_offset_height = line_offset_height + text_height;
+
+                local w = draw.GetTextSize(temp);
+                if (w > max_width) then
+                    max_width = w;
+                end
             end
+
+            local w, h = draw.GetTextSize(msg);
+            if (w > max_width) then
+                max_width = w;
+            end
+
+            text_height = h + 5;
         end
+    end
+
+    if (max_width ~= 0) then
+        text_width = max_width;
     end
 
     -- Header
@@ -137,12 +167,23 @@ function drawEventHandler()
     draw.Text(EDITOR_POSITION_X + 5, EDITOR_POSITION_Y + 5, "Chat Translations");
 
     draw.Color(0, 0, 0, 100);
-    draw.FilledRect(EDITOR_POSITION_X, EDITOR_POSITION_Y + header_text_height + 10, EDITOR_POSITION_X + text_width + 20, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20)
+    draw.FilledRect(EDITOR_POSITION_X, EDITOR_POSITION_Y + header_text_height + 10, EDITOR_POSITION_X + text_width + 20, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20)
 
+    line_offset_height = 0;
     for i, msg in ipairs(messages_translated) do
         if (#messages_translated - i < NUM_OF_MESSAGES_SLIDER:GetValue()) then
             draw.Color(255, 255, 255, 255);
-            draw.TextShadow(10 + EDITOR_POSITION_X,  header_text_height + 10 + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + EDITOR_POSITION_Y - (#messages_translated - i) * text_height - 10, msg);
+
+            local temp;
+            local max_line_width = math.floor(MAX_WIDTH_SLIDER:GetValue());
+            while (string.len(msg) > max_line_width) do
+                temp = msg:sub(1, max_line_width);
+                draw.TextShadow(10 + EDITOR_POSITION_X,  line_offset_height + header_text_height + 10 + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + EDITOR_POSITION_Y - (#messages_translated - i) * text_height - 10, temp);
+                msg = msg:sub(max_line_width + 1);
+                line_offset_height = line_offset_height + text_height;
+            end
+
+            draw.TextShadow(10 + EDITOR_POSITION_X, header_text_height + 10 + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + EDITOR_POSITION_Y - (#messages_translated - i) * text_height - 10 + line_offset_height, msg);
         end
     end
 
@@ -150,7 +191,7 @@ function drawEventHandler()
 
     local left_mouse_down = input.IsButtonDown(1);
 
-    local LOAD_TEXT_W, LOAD_TEXT_H = draw.GetTextSize("TEAM MESSAGE");
+    local BUTTON_TEXT_W, BUTTON_TEXT_H = draw.GetTextSize("TEAM MESSAGE");
 
     if (is_dragging == true and left_mouse_down == false) then
         is_dragging = false;
@@ -162,7 +203,7 @@ function drawEventHandler()
         dragHandler(header_text_height);
     end
 
-    if (mouse_x > EDITOR_POSITION_X and mouse_x < EDITOR_POSITION_X + LOAD_TEXT_W + 10 and mouse_y > EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H) then
+    if (pressed and mouse_x > EDITOR_POSITION_X and mouse_x < EDITOR_POSITION_X + BUTTON_TEXT_W + 10 and mouse_y > EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + BUTTON_TEXT_H) then
         draw.Color(0, 0, 0, 200);
         if (left_mouse_down) then
             sendMessage("ME_TEAM");
@@ -171,12 +212,12 @@ function drawEventHandler()
         draw.Color(0, 0, 0, 100);
     end
 
-    draw.FilledRect(EDITOR_POSITION_X, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20, EDITOR_POSITION_X + LOAD_TEXT_W + 10, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H)
+    draw.FilledRect(EDITOR_POSITION_X, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20, EDITOR_POSITION_X + BUTTON_TEXT_W + 10, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + BUTTON_TEXT_H)
     draw.Color(255, 255, 255, 255);
-    draw.Text(EDITOR_POSITION_X + 5, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 25, "TEAM MESSAGE");
+    draw.Text(EDITOR_POSITION_X + 5, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 25, "TEAM MESSAGE");
 
-    local LOAD_TEXT_W2, LOAD_TEXT_H2 = draw.GetTextSize("GLOBAL MESSAGE");
-    if (mouse_x > EDITOR_POSITION_X + LOAD_TEXT_W + 10 and mouse_x < EDITOR_POSITION_X + LOAD_TEXT_W + LOAD_TEXT_W2 + 20 and mouse_y > EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H) then
+    local BUTTON_TEXT_W2, BUTTON_TEXT_H2 = draw.GetTextSize("GLOBAL MESSAGE");
+    if (pressed and mouse_x > EDITOR_POSITION_X + BUTTON_TEXT_W + 10 and mouse_x < EDITOR_POSITION_X + BUTTON_TEXT_W + BUTTON_TEXT_W2 + 20 and mouse_y > EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + BUTTON_TEXT_H) then
         draw.Color(0, 0, 0, 200);
         if (left_mouse_down) then
             sendMessage("ME_ALL");
@@ -185,13 +226,17 @@ function drawEventHandler()
         draw.Color(0, 0, 0, 100);
     end
 
-    draw.FilledRect(EDITOR_POSITION_X + LOAD_TEXT_W + 10, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20, EDITOR_POSITION_X + LOAD_TEXT_W + LOAD_TEXT_W2 + 20, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + LOAD_TEXT_H)
+    draw.FilledRect(EDITOR_POSITION_X + BUTTON_TEXT_W + 10, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20, EDITOR_POSITION_X + BUTTON_TEXT_W + BUTTON_TEXT_W2 + 20, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + BUTTON_TEXT_H)
     draw.Color(255, 255, 255, 255);
-    draw.Text(EDITOR_POSITION_X + LOAD_TEXT_W + 15, EDITOR_POSITION_Y + header_text_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 25, "GLOBAL MESSAGE");
+    draw.Text(EDITOR_POSITION_X + BUTTON_TEXT_W + 15, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 25, "GLOBAL MESSAGE");
 end
 
 function dragHandler(header_text_height)
     local mouse_x, mouse_y = input.GetMousePos();
+
+    if (not pressed) then
+        return;
+    end
 
     if (is_dragging == true) then
         EDITOR_POSITION_X = mouse_x - dragging_offset_x;
@@ -263,5 +308,6 @@ function urlencode(url)
     return url
 end
 
-callbacks.Register("Draw", "translate_draw_event", drawEventHandler);
-callbacks.Register("DispatchUserMessage", "translate_usermessage_handler", userMessageHandler);
+callbacks.Register("Draw", drawEventShowHandler);
+callbacks.Register("Draw", drawEventHandler);
+callbacks.Register("DispatchUserMessage", userMessageHandler);
