@@ -4,7 +4,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.0.8";
+local VERSION_NUMBER = "1.0.9";
 
 local MESSAGE_COOLDOWN = 30;
 
@@ -14,7 +14,7 @@ local ERROR_FONT = draw.CreateFont("Tahoma Bold", 17, 17);
 local OPEN_TRANSLATE_WINDOW_CB = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "OPEN_TRANSLATE_WINDOW_CB", "Chat translator", false);
 local TRANSLATE_WINDOW = gui.Window("TRANSLATE_WINDOW", "Chat Translator", 0, 0, 300, 350);
 
-local MAX_WIDTH_SLIDER = gui.Slider(TRANSLATE_WINDOW, "MAX_WIDTH_SLIDER", "Max line length", 75, 0, 200);
+local MAX_WIDTH_SLIDER = gui.Slider(TRANSLATE_WINDOW, "MAX_WIDTH_SLIDER", "Max line length", 100, 0, 200);
 
 -- TRANSLATED MESSAGES
 local NUM_OF_MESSAGES_SLIDER = gui.Slider(TRANSLATE_WINDOW, "NUM_OF_MESSAGES_SLIDER", "# of shown messages", 10, 0, 50);
@@ -291,7 +291,7 @@ function getTranslation(type, name, message, from, to, teamonly)
     name = urlencode(name);
     message = urlencode(message);
 
-    return http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly);
+    return urldecode(http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly));
 end
 
 local char_to_hex = function(c)
@@ -305,6 +305,19 @@ function urlencode(url)
     url = url:gsub("\n", "\r\n")
     url = url:gsub("([^%w ])", char_to_hex)
     url = url:gsub(" ", "+")
+    return url
+end
+
+local hex_to_char = function(x)
+    return string.char(tonumber(x, 16))
+end
+
+function urldecode(url)
+    if url == nil then
+        return
+    end
+    url = url:gsub("+", " ")
+    url = url:gsub("%%(%x%x)", hex_to_char)
     return url
 end
 
