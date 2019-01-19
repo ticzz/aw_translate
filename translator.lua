@@ -4,9 +4,11 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = "translator.lua";
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.0.6";
+local VERSION_NUMBER = "1.0.7";
 
 local MESSAGE_COOLDOWN = 30;
+
+local MAIN_FONT = draw.CreateFont("Tahoma", 13, 13);
 
 local OPEN_TRANSLATE_WINDOW_CB = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "OPEN_TRANSLATE_WINDOW_CB", "Chat translator", false);
 local TRANSLATE_WINDOW = gui.Window("TRANSLATE_WINDOW", "Chat Translator", 0, 0, 300, 300);
@@ -61,6 +63,7 @@ function userMessageHandler(message)
 end
 
 function drawEventHandler()
+    draw.SetFont(MAIN_FONT);
     if (update_available and not update_downloaded) then
         if (gui.GetValue("lua_allow_cfg") == false) then
             draw.Color(255, 0, 0, 255);
