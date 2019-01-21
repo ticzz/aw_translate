@@ -4,7 +4,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.0.9";
+local VERSION_NUMBER = "1.1.0";
 
 local MESSAGE_COOLDOWN = 30;
 
@@ -56,12 +56,7 @@ function userMessageHandler(message)
         local name = client.GetPlayerNameByIndex(pid);
 
         local textallchat = message:GetInt(5);
-        local translation = getTranslation("TRANSLATE", name, text, string.lower(TRANSLATE_FROM_EDITBOX:GetValue()),  string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()), textallchat);
-        if (translation == nil or translation == "") then
-            return;
-        end
-
-        table.insert(messages_translated, translation);
+        getTranslation("TRANSLATE", name, text, string.lower(TRANSLATE_FROM_EDITBOX:GetValue()),  string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()), textallchat);
     end
 end
 
@@ -122,7 +117,7 @@ function drawEventHandler()
     if (last_message_sent ~= nil and last_message_sent > globals.TickCount()) then
         last_message_sent = globals.TickCount();
     end
-    
+
     drawTranslations();
 end
 
@@ -263,17 +258,7 @@ function sendMessage(type)
         return;
     end
 
-    local translation = getTranslation("ME_TEAM", "none", text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), 1);
-    if (translation == nil or translation == "") then
-        return;
-    end
-
-    if (type == "ME_TEAM") then
-        client.ChatTeamSay(translation);
-    elseif (type == "ME_ALL") then
-        client.ChatSay(translation);
-    end
-
+    getTranslation("ME_TEAM", "none", text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), 1);
     last_message_sent = globals.TickCount();
 end
 
@@ -291,7 +276,36 @@ function getTranslation(type, name, message, from, to, teamonly)
     name = urlencode(name);
     message = urlencode(message);
 
-    return urldecode(http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly));
+    if (type == "ME_TEAM") then
+        http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly, translationTeamsay);
+    elseif (team == "ME_ALL") then
+        http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly, translationAllsay);
+    else
+        http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly, translationCallback);
+    end
+
+end
+
+function translationTeamsay(content)
+    if (content == nil or content == "" or content == "error") then
+        return;
+    end
+    client.ChatTeamSay(urldecode(content));
+end
+
+function translationAllsay(content)
+    if (content == nil or content == "" or content == "error") then
+        return;
+    end
+    client.ChatSay(urldecode(content));
+end
+
+function translationCallback(content)
+    if (content == nil or content == "" or content == "error") then
+        return;
+    end
+
+    table.insert(messages_translated, urldecode(content));
 end
 
 local char_to_hex = function(c)
