@@ -4,7 +4,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.1.0";
+local VERSION_NUMBER = "1.1.1";
 
 local MESSAGE_COOLDOWN = 30;
 
@@ -258,7 +258,7 @@ function sendMessage(type)
         return;
     end
 
-    getTranslation("ME_TEAM", "none", text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), 1);
+    getTranslation(type, "none", text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), 1);
     last_message_sent = globals.TickCount();
 end
 
@@ -278,7 +278,7 @@ function getTranslation(type, name, message, from, to, teamonly)
 
     if (type == "ME_TEAM") then
         http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly, translationTeamsay);
-    elseif (team == "ME_ALL") then
+    elseif (type == "ME_ALL") then
         http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly, translationAllsay);
     else
         http.Get(NETWORK_GET_ADDR .. "?type=" .. type .. "&name=" .. name .."&msg=" .. message .. "&from=" .. from .. "&to=" .. to .. "&team=" .. teamonly, translationCallback);
