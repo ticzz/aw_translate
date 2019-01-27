@@ -4,7 +4,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.1.1";
+local VERSION_NUMBER = "1.1.2";
 
 local MESSAGE_COOLDOWN = 30;
 
@@ -27,9 +27,7 @@ local TRANSLATE_FROM_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_FROM_EDI
 gui.Text(TRANSLATE_WINDOW, "Your language (ISO code): ");
 local TRANSLATE_MY_LANGUAGE_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_MY_LANGUAGE_EDITBOX", "en");
 
--- Translating own message
-gui.Text(TRANSLATE_WINDOW, "Your message: ");
-local TRANSLATE_MESSAGE_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_MESSAGE_EDITBOX", "");
+local DO_TRANSLATE_CB = gui.Checkbox(TRANSLATE_WINDOW, "DO_TRANSLATE_CB", "Translate outgoing messages", false);
 gui.Text(TRANSLATE_WINDOW, "Translate to language (ISO code): ");
 local TRANSLATE_TO_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_TO_EDITBOX", "en");
 
@@ -48,6 +46,7 @@ local dragging_offset_x, dragging_offset_y;
 local update_available = false;
 local version_check_done = false;
 local update_downloaded = false;
+local sent_by_translator = false;
 
 function userMessageHandler(message)
     if (message:GetID() == 6) then
@@ -186,8 +185,6 @@ function drawTranslations()
 
     local left_mouse_down = input.IsButtonDown(1);
 
-    local BUTTON_TEXT_W, BUTTON_TEXT_H = draw.GetTextSize("TEAM MESSAGE");
-
     if (is_dragging == true and left_mouse_down == false) then
         is_dragging = false;
         dragging_offset_x = 0;
@@ -197,33 +194,6 @@ function drawTranslations()
     if (left_mouse_down) then
         dragHandler(header_text_height);
     end
-
-    if (pressed and mouse_x > EDITOR_POSITION_X and mouse_x < EDITOR_POSITION_X + BUTTON_TEXT_W + 10 and mouse_y > EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + BUTTON_TEXT_H) then
-        draw.Color(0, 0, 0, 200);
-        if (left_mouse_down) then
-            sendMessage("ME_TEAM");
-        end
-    else
-        draw.Color(0, 0, 0, 100);
-    end
-
-    draw.FilledRect(EDITOR_POSITION_X, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20, EDITOR_POSITION_X + BUTTON_TEXT_W + 10, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + BUTTON_TEXT_H)
-    draw.Color(255, 255, 255, 255);
-    draw.Text(EDITOR_POSITION_X + 5, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 25, "TEAM MESSAGE");
-
-    local BUTTON_TEXT_W2, BUTTON_TEXT_H2 = draw.GetTextSize("GLOBAL MESSAGE");
-    if (pressed and mouse_x > EDITOR_POSITION_X + BUTTON_TEXT_W + 10 and mouse_x < EDITOR_POSITION_X + BUTTON_TEXT_W + BUTTON_TEXT_W2 + 20 and mouse_y > EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20 and mouse_y < EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + BUTTON_TEXT_H) then
-        draw.Color(0, 0, 0, 200);
-        if (left_mouse_down) then
-            sendMessage("ME_ALL");
-        end
-    else
-        draw.Color(0, 0, 0, 100);
-    end
-
-    draw.FilledRect(EDITOR_POSITION_X + BUTTON_TEXT_W + 10, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 20, EDITOR_POSITION_X + BUTTON_TEXT_W + BUTTON_TEXT_W2 + 20, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 30 + BUTTON_TEXT_H)
-    draw.Color(255, 255, 255, 255);
-    draw.Text(EDITOR_POSITION_X + BUTTON_TEXT_W + 15, EDITOR_POSITION_Y + header_text_height + line_offset_height + 10 + NUM_OF_MESSAGES_SLIDER:GetValue() * text_height + 25, "GLOBAL MESSAGE");
 end
 
 function dragHandler(header_text_height)
@@ -239,7 +209,7 @@ function dragHandler(header_text_height)
         return;
     end
 
-    if (mouse_x >= EDITOR_POSITION_X and mouse_x <= EDITOR_POSITION_X + text_width and mouse_y >= EDITOR_POSITION_Y and mouse_y <= EDITOR_POSITION_Y + header_text_height + 10) then
+    if (mouse_x >= EDITOR_POSITION_X and mouse_x <= EDITOR_POSITION_X + text_width + 20 and mouse_y >= EDITOR_POSITION_Y and mouse_y <= EDITOR_POSITION_Y + header_text_height + 10) then
         is_dragging = true;
         dragging_offset_x = mouse_x - EDITOR_POSITION_X;
         dragging_offset_y = mouse_y - EDITOR_POSITION_Y;
@@ -247,12 +217,10 @@ function dragHandler(header_text_height)
     end
 end
 
-function sendMessage(type)
+function sendMessage(type, text)
     if (globals.TickCount() - last_message_sent < MESSAGE_COOLDOWN) then
         return;
     end
-
-    local text = TRANSLATE_MESSAGE_EDITBOX:GetValue();
 
     if (text == nil or text == "") then
         return;
@@ -290,6 +258,7 @@ function translationTeamsay(content)
     if (content == nil or content == "" or content == "error") then
         return;
     end
+    sent_by_translator = true;
     client.ChatTeamSay(urldecode(content));
 end
 
@@ -297,6 +266,7 @@ function translationAllsay(content)
     if (content == nil or content == "" or content == "error") then
         return;
     end
+    sent_by_translator = true;
     client.ChatSay(urldecode(content));
 end
 
@@ -335,6 +305,29 @@ function urldecode(url)
     return url
 end
 
+function sendStringHandler(cmd)
+    local sent_command = cmd:Get();
+    if (sent_by_translator == true) then
+        sent_by_translator = false;
+        return;
+    end
+
+    if (DO_TRANSLATE_CB:GetValue() == false) then
+        return;
+    end
+
+    cmd:Set("");
+
+    if (string.find(sent_command, "say_team") == 1) then
+        sent_by_translator = true;
+        sendMessage("ME_TEAM", string.match(sent_command, "say_team \"(.*)\""));
+    elseif (string.find(sent_command, "say") == 1) then
+        sent_by_translator = true;
+        sendMessage("ME_ALL", string.match(sent_command, "say \"(.*)\""));
+    end
+end
+
+callbacks.Register("SendStringCmd", sendStringHandler);
 callbacks.Register("Draw", drawEventShowHandler);
 callbacks.Register("Draw", drawEventHandler);
 callbacks.Register("DispatchUserMessage", userMessageHandler);
