@@ -4,7 +4,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.1.2";
+local VERSION_NUMBER = "1.1.3";
 
 local MESSAGE_COOLDOWN = 30;
 
@@ -26,8 +26,9 @@ local TRANSLATE_FROM_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_FROM_EDI
 -- My language
 gui.Text(TRANSLATE_WINDOW, "Your language (ISO code): ");
 local TRANSLATE_MY_LANGUAGE_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_MY_LANGUAGE_EDITBOX", "en");
+local SHOW_SAME_LANGUAGE_CB = gui.Checkbox(TRANSLATE_WINDOW, "SHOW_SAME_LANGUAGE_CB", "Show translations for the same language", false);
 
-local DO_TRANSLATE_CB = gui.Checkbox(TRANSLATE_WINDOW, "DO_TRANSLATE_CB", "Translate outgoing messages", false);
+local DO_TRANSLATE_CB = gui.Checkbox(TRANSLATE_WINDOW, "DO_TRANSLATE_CB", "Translate outgoing messages automatically", false);
 gui.Text(TRANSLATE_WINDOW, "Translate to language (ISO code): ");
 local TRANSLATE_TO_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_TO_EDITBOX", "en");
 
@@ -217,7 +218,7 @@ function dragHandler(header_text_height)
     end
 end
 
-function sendMessage(type, text)
+function sendMessage(type, text, language)
     if (globals.TickCount() - last_message_sent < MESSAGE_COOLDOWN) then
         return;
     end
@@ -226,7 +227,11 @@ function sendMessage(type, text)
         return;
     end
 
-    getTranslation(type, "none", text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()),  string.lower(TRANSLATE_TO_EDITBOX:GetValue()), 1);
+    if (language == nil) then
+        language = string.lower(TRANSLATE_TO_EDITBOX:GetValue())
+    end
+
+    getTranslation(type, "none", text, string.lower(TRANSLATE_MY_LANGUAGE_EDITBOX:GetValue()), language, 1);
     last_message_sent = globals.TickCount();
 end
 
@@ -254,8 +259,25 @@ function getTranslation(type, name, message, from, to, teamonly)
 
 end
 
+function contentIsValid(content)
+    return content ~= nil and content ~= "" and content ~= "error";
+end
+
+function isLanguageSupported(content)
+    if (string.find(content, "{\"code\":400", 1)) then
+        table.insert(messages_translated, "ERROR: " .. string.match(content, "language \'(.*)\'") .. " is not a supported language.")
+        return false;
+    end
+    return true;
+end
+
+function shouldLanguageBeTranslated(content)
+    local lang1, lang2 = string.match(content, "(%S*) %-%> (%S*)");
+    return SHOW_SAME_LANGUAGE_CB:GetValue() == true or lang1 ~= lang2;
+end
+
 function translationTeamsay(content)
-    if (content == nil or content == "" or content == "error") then
+    if (contentIsValid(content) == false or isLanguageSupported(content) == false) then
         return;
     end
     sent_by_translator = true;
@@ -263,7 +285,7 @@ function translationTeamsay(content)
 end
 
 function translationAllsay(content)
-    if (content == nil or content == "" or content == "error") then
+    if (contentIsValid(content) == false or isLanguageSupported(content) == false) then
         return;
     end
     sent_by_translator = true;
@@ -271,7 +293,7 @@ function translationAllsay(content)
 end
 
 function translationCallback(content)
-    if (content == nil or content == "" or content == "error") then
+    if (contentIsValid(content) == false or shouldLanguageBeTranslated(content) == false) then
         return;
     end
 
@@ -307,24 +329,38 @@ end
 
 function sendStringHandler(cmd)
     local sent_command = cmd:Get();
+
+    local is_say_team = string.find(sent_command, "say_team") == 1;
+    local is_say = string.find(sent_command, "say") == 1;
+
+    if (is_say_team == false and is_say == false) then
+        return;
+    end
+
     if (sent_by_translator == true) then
         sent_by_translator = false;
         return;
     end
 
-    if (DO_TRANSLATE_CB:GetValue() == false) then
+    local send_to = "ME_ALL";
+    if (is_say_team) then
+        send_to = "ME_TEAM";
+    end
+
+    local send_message = string.match(sent_command:gsub("_team", ""), "say \"(.*)\"");
+    local has_translator_prefix = string.find(send_message, ".tsay") == 1;
+    local language;
+
+    if (has_translator_prefix) then
+        language, send_message = string.match(send_message, ".tsay (%S*) (.*)");
+    end
+
+    if (has_translator_prefix == false and DO_TRANSLATE_CB:GetValue() == false) then
         return;
     end
 
     cmd:Set("");
-
-    if (string.find(sent_command, "say_team") == 1) then
-        sent_by_translator = true;
-        sendMessage("ME_TEAM", string.match(sent_command, "say_team \"(.*)\""));
-    elseif (string.find(sent_command, "say") == 1) then
-        sent_by_translator = true;
-        sendMessage("ME_ALL", string.match(sent_command, "say \"(.*)\""));
-    end
+    sendMessage(send_to, send_message, language);
 end
 
 callbacks.Register("SendStringCmd", sendStringHandler);
