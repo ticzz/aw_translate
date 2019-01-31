@@ -1,10 +1,10 @@
 -- Chat Translator by ShadyRetard
 
-local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/translate";
+local NETWORK_GET_ADDR = "http://api.shadyretard.io/translate";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.1.3";
+local VERSION_NUMBER = "1.1.4";
 
 local MESSAGE_COOLDOWN = 30;
 
@@ -348,6 +348,10 @@ function sendStringHandler(cmd)
     end
 
     local send_message = string.match(sent_command:gsub("_team", ""), "say \"(.*)\"");
+    if (send_message == nil) then
+        return;
+    end
+
     local has_translator_prefix = string.find(send_message, ".tsay") == 1;
     local language;
 
