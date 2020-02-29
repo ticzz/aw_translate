@@ -1,38 +1,36 @@
--- Chat Translator by ShadyRetard
-
+---------------------------------------------------------------------------------------------
 local NETWORK_GET_ADDR = "http://api.shadyretard.io/translate";
-local SCRIPT_FILE_NAME = GetScriptName();
-local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/translator.lua";
-local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_translate/master/version.txt";
-local VERSION_NUMBER = "1.1.4";
 
 local MESSAGE_COOLDOWN = 30;
-
+local msc_menutoggle = 45
 local MAIN_FONT = draw.CreateFont("Tahoma", 13, 13);
 local ERROR_FONT = draw.CreateFont("Tahoma Bold", 17, 17);
+local refg = gui.Reference("MISC")
+local Translator_tab = gui.Tab(refg, "translator_lua_tab", "Translator")
 
-local OPEN_TRANSLATE_WINDOW_CB = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "OPEN_TRANSLATE_WINDOW_CB", "Chat translator", false);
-local TRANSLATE_WINDOW = gui.Window("TRANSLATE_WINDOW", "Chat Translator", 0, 0, 300, 350);
 
-local MAX_WIDTH_SLIDER = gui.Slider(TRANSLATE_WINDOW, "MAX_WIDTH_SLIDER", "Max line length", 100, 0, 200);
+local shitfix = gui.Groupbox(Translator_tab,"Chat Translator Settings", 10, 10,280)
+
+
+local MAX_WIDTH_SLIDER = gui.Slider(shitfix, "MAX_WIDTH_SLIDER", "Max line length", 100, 0, 200);
 
 -- TRANSLATED MESSAGES
-local NUM_OF_MESSAGES_SLIDER = gui.Slider(TRANSLATE_WINDOW, "NUM_OF_MESSAGES_SLIDER", "# of shown messages", 10, 0, 50);
+local NUM_OF_MESSAGES_SLIDER = gui.Slider(shitfix, "NUM_OF_MESSAGES_SLIDER", "# of shown messages", 10, 0, 50);
 
 -- Other person's language
-gui.Text(TRANSLATE_WINDOW, "Other person's language (ISO code): ");
-local TRANSLATE_FROM_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_FROM_EDITBOX", "auto");
+gui.Text(shitfix, "Other person's language (ISO code): ");
+local TRANSLATE_FROM_EDITBOX = gui.Editbox(shitfix, "TRANSLATE_FROM_EDITBOX", "");
 
 -- My language
-gui.Text(TRANSLATE_WINDOW, "Your language (ISO code): ");
-local TRANSLATE_MY_LANGUAGE_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_MY_LANGUAGE_EDITBOX", "en");
-local SHOW_SAME_LANGUAGE_CB = gui.Checkbox(TRANSLATE_WINDOW, "SHOW_SAME_LANGUAGE_CB", "Show translations for the same language", false);
+gui.Text(shitfix, "Your language (ISO code): ");
+local TRANSLATE_MY_LANGUAGE_EDITBOX = gui.Editbox(shitfix, "TRANSLATE_MY_LANGUAGE_EDITBOX", "");
+local SHOW_SAME_LANGUAGE_CB = gui.Checkbox(shitfix, "SHOW_SAME_LANGUAGE_CB", "Show translations for the same language", false);
 
-local DO_TRANSLATE_CB = gui.Checkbox(TRANSLATE_WINDOW, "DO_TRANSLATE_CB", "Translate outgoing messages automatically", false);
-gui.Text(TRANSLATE_WINDOW, "Translate to language (ISO code): ");
-local TRANSLATE_TO_EDITBOX = gui.Editbox(TRANSLATE_WINDOW, "TRANSLATE_TO_EDITBOX", "en");
+local DO_TRANSLATE_CB = gui.Checkbox(shitfix, "DO_TRANSLATE_CB", "Translate outgoing messages automatically", false);
+gui.Text(shitfix, "Translate to language (ISO code): ");
+local TRANSLATE_TO_EDITBOX = gui.Editbox(shitfix, "TRANSLATE_TO_EDITBOX", "");
 
-local EDITOR_POSITION_X, EDITOR_POSITION_Y = 50, 50;
+local EDITOR_POSITION_X, EDITOR_POSITION_Y = 88, 50;
 
 local last_output_read = globals.TickCount();
 local last_message_sent = globals.TickCount();
@@ -60,55 +58,42 @@ function userMessageHandler(message)
     end
 end
 
-function drawEventShowHandler()
-    show = OPEN_TRANSLATE_WINDOW_CB:GetValue();
-
-    if input.IsButtonPressed(gui.GetValue("msc_menutoggle")) then
-        pressed = not pressed;
-    end
-
-    if (show and pressed) then
-        TRANSLATE_WINDOW:SetActive(1);
-    else
-        TRANSLATE_WINDOW:SetActive(0);
-    end
-end
 
 function drawEventHandler()
-    draw.SetFont(ERROR_FONT);
-    if (update_available and not update_downloaded) then
-        if (gui.GetValue("lua_allow_cfg") == false) then
-            draw.Color(255, 0, 0, 255);
-            draw.Text(0, 0, "[TRANSLATOR] An update is available, please enable Lua Allow Config and Lua Editing in the settings tab");
-        else
-            local new_version_content = http.Get(SCRIPT_FILE_ADDR);
-            local old_script = file.Open(SCRIPT_FILE_NAME, "w");
-            old_script:Write(new_version_content);
-            old_script:Close();
-            update_available = false;
-            update_downloaded = true;
-        end
-    end
-
-    if (update_downloaded) then
-        draw.Color(255, 0, 0, 255);
-        draw.Text(0, 0, "[TRANSLATOR] An update has automatically been downloaded, please reload the translator script");
-        return;
-    end
-
-    if (not version_check_done) then
-        if (gui.GetValue("lua_allow_http") == false) then
-            draw.Color(255, 0, 0, 255);
-            draw.Text(0, 0, "[TRANSLATOR] Please enable Lua HTTP Connections in your settings tab to use this script");
-            return;
-        end
-
-        version_check_done = true;
-        local version = http.Get(VERSION_FILE_ADDR);
-        if (version ~= VERSION_NUMBER) then
-            update_available = true;
-        end
-    end
+draw.SetFont(ERROR_FONT);
+--    if (update_available and not update_downloaded) then
+--        if (gui.GetValue("lua_allow_cfg") == false) then
+--            draw.Color(255, 0, 0, 255);
+--            draw.Text(0, 0, "[TRANSLATOR] An update is available, please enable Lua Allow Config and Lua Editing in the settings tab");
+--        else
+--            local new_version_content = http.Get(SCRIPT_FILE_ADDR);
+--            local old_script = file.Open(SCRIPT_FILE_NAME, "w");
+--            old_script:Write(new_version_content);
+--            old_script:Close();
+--            update_available = false;
+--            update_downloaded = true;
+--        end
+--    end
+--
+--    if (update_downloaded) then
+--        draw.Color(255, 0, 0, 255);
+--        draw.Text(0, 0, "[TRANSLATOR] An update has automatically been downloaded, please reload the translator script");
+--        return;
+--    end
+--
+--    if (not version_check_done) then
+--        if (gui.GetValue("lua_allow_http") == false) then
+--            draw.Color(255, 0, 0, 255);
+--            draw.Text(0, 0, "[TRANSLATOR] Please enable Lua HTTP Connections in your settings tab to use this script");
+--            return;
+--        end
+--
+--        version_check_done = true;
+--        local version = http.Get(VERSION_FILE_ADDR);
+--        if (version ~= VERSION_NUMBER) then
+--            update_available = true;
+--        end
+--    end
 
     if (last_output_read ~= nil and last_output_read > globals.TickCount()) then
         last_output_read = globals.TickCount();
@@ -155,10 +140,10 @@ function drawTranslations()
 
     -- Header
     local header_text_width, header_text_height = draw.GetTextSize("Chat Translations");
-    draw.Color(gui.GetValue("clr_gui_window_header"));
+    draw.Color(0,0,0,255);
     draw.FilledRect(EDITOR_POSITION_X, EDITOR_POSITION_Y, EDITOR_POSITION_X + text_width + 20, EDITOR_POSITION_Y + header_text_height + 10);
 
-    draw.Color(gui.GetValue("clr_gui_window_logo1"));
+    draw.Color(0,200,0,255);
     draw.Text(EDITOR_POSITION_X + 5, EDITOR_POSITION_Y + 5, "Chat Translations");
 
     draw.Color(0, 0, 0, 100);
@@ -368,6 +353,5 @@ function sendStringHandler(cmd)
 end
 
 callbacks.Register("SendStringCmd", sendStringHandler);
-callbacks.Register("Draw", drawEventShowHandler);
 callbacks.Register("Draw", drawEventHandler);
 callbacks.Register("DispatchUserMessage", userMessageHandler);
